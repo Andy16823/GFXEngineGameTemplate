@@ -46,6 +46,11 @@ void MyGame::onInit(Graphics::Renderer& renderer)
 	// Enable parallel rendering for the scene to allow rendering of multiple objects in parallel, improving performance on multi-core systems.
 	m_scene->setUseParallelRendering(true);
 	m_scene->init(renderer); // Needs to called at the end of the onInit function to ensure all resources are initialized before the scene is set up
+
+	// Initial world editor
+	m_worldEditor = std::make_unique<GFXEditor::WorldEditor>(m_scene.get(), this, PROJECT_PATH);
+	m_worldEditor->init(*m_uiContext, renderer);
+	m_worldEditor->setVisible(true);
 }
 
 /// <summary>
@@ -71,6 +76,11 @@ void MyGame::onUpdate(Graphics::Renderer & renderer, uint32_t imageIndex, float 
 	auto window = this->getWindow();
 	m_camera->updateCameraBuffers(renderer, imageIndex);
 	m_scene->update(*m_camera, deltaTime);
+
+	// Update world editor
+	if (m_worldEditor->isVisible()) {
+		m_worldEditor->update(*m_uiContext, *this->inputManager, deltaTime);
+	}
 }
 
 /// <summary>
@@ -81,6 +91,11 @@ void MyGame::onUpdate(Graphics::Renderer & renderer, uint32_t imageIndex, float 
 void MyGame::beforeRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 {
 	m_scene->beforeRender(renderer, *m_camera, imageIndex);
+
+	if (m_worldEditor->isVisible())
+	{
+		m_worldEditor->beforeRender(*m_uiContext, renderer, imageIndex);
+	}
 }
 
 /// <summary>
@@ -88,11 +103,11 @@ void MyGame::beforeRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 /// </summary>
 /// <param name="renderer"></param>
 /// <param name="imageIndex"></param>
-void MyGame::onRender(Graphics::Renderer & renderer, uint32_t imageIndex)
+void MyGame::onRender(Graphics::Renderer & renderer, GFXEngine::Graphics::FrameContext& frameContext, uint32_t imageIndex)
 {
 	// First we render the 3D scene to the offscreen render texture.
 	renderer.beginRenderPass(renderer.getOffscreenRenderPass(), m_renderTexture->getFramebuffer(), imageIndex);
-	m_scene->render(renderer, *m_camera, imageIndex);
+	m_scene->render(renderer, *m_camera, frameContext, imageIndex);
 	renderer.endRenderPass(imageIndex);
 
 	// Then we render the contents of the render texture to the screen using the present pipeline. 
@@ -104,6 +119,10 @@ void MyGame::onRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 
 	// Now we can render the UI on top of the 3D scene. The UI context will handle rendering all the UI elements and ensuring they are drawn in the correct order.
 	m_uiContext->newFrame();
+	if (m_worldEditor->isVisible()) {
+		m_worldEditor->renderSceneToTexture(renderer, frameContext, m_uiContext.get(), imageIndex);
+		m_worldEditor->render(*m_uiContext, renderer, imageIndex);
+	}
 	m_uiContext->render(renderer, imageIndex);
 
 	// End the render pass to finalize rendering for this frame.
@@ -115,7 +134,12 @@ void MyGame::onRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 /// <param name="renderer"></param>
 /// <param name="imageIndex"></param>
 void MyGame::afterRender(Graphics::Renderer & renderer, uint32_t imageIndex)
-{}
+{
+	if (m_worldEditor->isVisible())
+	{
+		m_worldEditor->afterRender(*m_uiContext, renderer, imageIndex);
+	}
+}
 
 /// <summary>
 /// This function is called when the game is being destroyed and is used to clean up any resources that were created during the game's lifetime.
@@ -123,6 +147,7 @@ void MyGame::afterRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 /// <param name="renderer"></param>
 void MyGame::onDestroy(Graphics::Renderer & renderer)
 {
+	m_worldEditor->dispose(*m_uiContext, renderer);
 	m_uiContext->dispose(renderer);
 	m_camera->destroyDescriptorSets(renderer);
 
@@ -139,7 +164,8 @@ void MyGame::onDestroy(Graphics::Renderer & renderer)
 /// </summary>
 /// <param name="renderer"></param>
 void MyGame::onSwapchainRecreate(Graphics::Renderer& renderer)
-{}
+{
+}
 
 /// <summary>
 /// Since the engine uses Vulkan, we need to handle swapchain recreation when the window is resized or when the swapchain becomes invalid.
@@ -155,14 +181,24 @@ void MyGame::afterSwapchainRecreate(Graphics::Renderer& renderer, VkViewport vie
 	m_renderTexture->updateDescriptorSet(renderer, 0, renderer.getSamplerLayout());
 }
 
-void MyGame::onInput(int key, int mods, int action)
+void MyGame::onInput(int key, int scancode, int action, int mods)
 {}
 
 void MyGame::onMouseInput(int button, int mods, int action)
-{}
+{
+	if (m_worldEditor->isVisible())
+	{
+		m_worldEditor->handleMouseInput(this->getWindow(), button, action, mods);
+	}
+}
 
 void MyGame::onMouseMove(double xpos, double ypos)
-{}
+{
+	if (m_worldEditor->isVisible())
+	{
+		m_worldEditor->handleMouseMove(this->getWindow(), xpos, ypos);
+	}
+}
 
 void MyGame::onScroll(double xoffset, double yoffset)
 {}

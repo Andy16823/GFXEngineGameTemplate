@@ -4,7 +4,8 @@
 cmake_minimum_required (VERSION 3.10)
 
 set(PROJECT_NAME "GFXEngineGameTemplate")
-set(GFXENGINE_TAG "dev")
+set(GFXENGINE_TAG "feature/asset-ref-count")
+set(PROJECT_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 
 
 # Aktivieren Sie Hot Reload für MSVC-Compiler, sofern unterstützt.
@@ -27,6 +28,9 @@ FetchContent_Declare(
 # Herunterladen und als Unterprojekt integrieren (falls das Repo ein CMake-Projekt enthält)
 FetchContent_MakeAvailable(GFXEngine)
 
+add_compile_definitions(
+    PROJECT_PATH="${PROJECT_PATH}"
+)
 
 # Schließen Sie Unterprojekte ein.
 add_subdirectory (${PROJECT_NAME})
