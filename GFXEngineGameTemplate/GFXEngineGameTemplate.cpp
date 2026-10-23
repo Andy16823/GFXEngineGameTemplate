@@ -12,6 +12,7 @@ int main()
 	std::filesystem::path shaderDir = std::filesystem::current_path() / "shaders";
 
 	MyGame game;
+	game.setResizable(true);
 	game.start(1280, 720, shaderDir.string(), "GFXEngine Game Template", false, true);
 	return 0;
 }

@@ -26,9 +26,11 @@ public:
 	void afterRender(GFXEngine::Graphics::Renderer& renderer, uint32_t imageIndex) override;
 	void onDestroy(GFXEngine::Graphics::Renderer& renderer) override;
 	void onInput(int key, int scancode, int action, int mods) override;
-	void onMouseInput(int button, int mods, int action) override;
+	void onMouseInput(int button, int action, int mods) override;
 	void onMouseMove(double xpos, double ypos) override;
 	void onScroll(double xoffset, double yoffset) override;
 	void onSwapchainRecreate(GFXEngine::Graphics::Renderer& renderer) override;
 	void afterSwapchainRecreate(GFXEngine::Graphics::Renderer& renderer, VkViewport viewport, VkRect2D scissor) override;
+	void loadAssets(GFXEngine::AssetManager& assetManager) override;
+
 };

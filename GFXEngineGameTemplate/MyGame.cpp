@@ -2,25 +2,54 @@
 #include "GFXEngine/Renderer.h"
 #include "GFXEngine/PresentPipeline.h"
 #include "GFXEngine/EngineDefinitions.h"
+#include "GFXEngine/MeshBuilder.h"
+#include "GFXEngine/MeshAsset.h"
+#include "GFXEngine/MaterialAsset.h"
+#include "GFXEngine/SolidMaterial.h"
+#include "GFXEngine/Primitive.h"
 
 using namespace GFXEngine;
 using namespace GFXEngine::Core;
 using namespace GFXEngine::Graphics;
 
 /// <summary>
-/// Within the onInit function, we set up the main camera, create the render texture for offscreen rendering, 
-/// initialize the scene, and set up the UI context. This function is called once when the game starts and is 
-/// used to initialize all necessary resources and state for the game.
+/// Loads the necessary assets for the game, including a primitive mesh and a solid material. 
+/// This function is called before the game starts and is used to load all required assets into the asset manager.
+/// </summary>
+/// <param name="assetManager"></param>
+void MyGame::loadAssets(GFXEngine::AssetManager& assetManager)
+{
+	MeshBuilder builder;
+
+	auto cubeMesh = std::make_unique<Mesh3D>(builder.createCube().buildMesh3D());
+	auto cubeMeshAsset = std::make_unique<MeshAsset>("PrimitiveMesh", std::move(cubeMesh));
+	assetManager.addAsset(std::move(cubeMeshAsset));
+
+	auto sphereMesh = std::make_unique<Mesh3D>(builder.createSphere(1.0f, 32, 32).buildMesh3D());
+	auto sphereMeshAsset = std::make_unique<MeshAsset>("SphereMesh", std::move(sphereMesh));
+	assetManager.addAsset(std::move(sphereMeshAsset));
+
+	auto cylinderMesh = std::make_unique<Mesh3D>(builder.createCylinder(1.0f, 2.0f, 32).buildMesh3D());
+	auto cylinderMeshAsset = std::make_unique<MeshAsset>("CylinderMesh", std::move(cylinderMesh));
+	assetManager.addAsset(std::move(cylinderMeshAsset));
+
+	auto primitiveMaterial = std::make_unique<SolidMaterial>();
+	auto materialAsset = std::make_unique<MaterialAsset>("PrimitiveMaterial", std::move(primitiveMaterial));
+	assetManager.addAsset(std::move(materialAsset));
+}
+
+/// <summary>
+/// Initializes the game, setting up the camera, render texture, scene, and UI context. 
+/// This function is called once when the game starts and is responsible for 
+/// creating all necessary resources and initializing the game state.
 /// </summary>
 /// <param name="renderer"></param>
 void MyGame::onInit(Graphics::Renderer& renderer)
 {
-	// Get the window size to set up the camera and render texture with the correct dimensions
 	auto size = this->getWindowSize();
 	uint32_t width = size.x;
 	uint32_t height = size.y;
 
-	// Create the main camera for the scene and update the camera buffers for each swapchain image
 	m_camera = std::make_unique<Camera3D>(glm::vec3(0.0f, 35.0f, 0.0f), static_cast<float>(width) / static_cast<float>(height), 0.1f, 1000.0f);
 	m_camera->getTransform().rotateWorld(-35.0f, 45.0f, 0.0f);
 	m_camera->createDescriptorSets(renderer, renderer.getUniformBufferLayout());
@@ -29,32 +58,56 @@ void MyGame::onInit(Graphics::Renderer& renderer)
 		m_camera->updateCameraBuffers(renderer, i);
 	}
 
-	// Create the render texture for offscreen rendering. This texture will be used to render the 3D scene before presenting it on the screen.
 	m_renderTexture = std::make_unique<RenderTexture>();
 	m_renderTexture->create(renderer, { width, height }, renderer.getOffscreenRenderPass());
 	m_renderTexture->createDescriptorSet(renderer, 0, renderer.getSamplerLayout());
 
-	// Create the main scene for the game. The scene will contain all the entities, lights, and other components that make up the 3D world.
 	m_scene = std::make_unique<Scene3D>();
 	m_scene->directionalLight.intensity = 8.0f;
 	m_scene->directionalLight.color = glm::vec3(0.88f, 0.64f, 1.00f);
 
-	// Create the UI context for rendering the user interface. The UI context will manage all the UI elements and render them on top of the 3D scene.
 	m_uiContext = std::make_unique<UIContext>();
 	m_uiContext->init(renderer, this->getWindow());
 
-	// Enable parallel rendering for the scene to allow rendering of multiple objects in parallel, improving performance on multi-core systems.
-	m_scene->setUseParallelRendering(true);
-	m_scene->init(renderer); // Needs to called at the end of the onInit function to ensure all resources are initialized before the scene is set up
+	AssetHandle cubeMeshHandle = this->assetManager->get<MeshAsset>("PrimitiveMesh");
+	AssetHandle sphereMeshHandle = this->assetManager->get<MeshAsset>("SphereMesh");
+	AssetHandle cylinderMeshHandle = this->assetManager->get<MeshAsset>("CylinderMesh");
+	AssetHandle material = this->assetManager->get<MaterialAsset>("PrimitiveMaterial");
 
-	// Initial world editor
+	auto cube = std::make_unique<Primitive>(cubeMeshHandle, material, Defintions::SOLID_COLOR_PIPELINE);
+	cube->setName("Cube");
+	cube->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+	cube->setScale(glm::vec3(1.0f));
+	cube->setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	m_scene->addEntity(std::move(cube));
+
+	auto sphere = std::make_unique<Primitive>(sphereMeshHandle, material, Defintions::SOLID_COLOR_PIPELINE);
+	sphere->setName("Sphere");
+	sphere->setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
+	sphere->setScale(glm::vec3(1.0f));
+	sphere->setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	m_scene->addEntity(std::move(sphere));
+
+	auto cylinder = std::make_unique<Primitive>(cylinderMeshHandle, material, Defintions::SOLID_COLOR_PIPELINE);
+	cylinder->setName("Cylinder");
+	cylinder->setPosition(glm::vec3(-3.0f, 0.0f, 0.0f));
+	cylinder->setScale(glm::vec3(1.0f));
+	cylinder->setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	m_scene->addEntity(std::move(cylinder));
+
+	this->assetManager->initializeGraphicsAssets(renderer);
+	m_scene->setUseParallelRendering(true);
+	m_scene->init(renderer);
+
 	m_worldEditor = std::make_unique<GFXEditor::WorldEditor>(m_scene.get(), this, PROJECT_PATH);
 	m_worldEditor->init(*m_uiContext, renderer);
 	m_worldEditor->setVisible(true);
 }
 
 /// <summary>
-/// Here we can set up any additional state or resources that depend on the renderer being fully initialized.
+/// Called once after the game has been initialized and is ready to start. 
+/// This function can be used to perform any additional setup or initialization 
+/// that needs to happen after the game has been fully initialized.
 /// </summary>
 /// <param name="renderer"></param>
 void MyGame::onStart(Graphics::Renderer & renderer)
@@ -63,28 +116,28 @@ void MyGame::onStart(Graphics::Renderer & renderer)
 }
 
 /// <summary>
-/// Here we update the camera buffers with the current view and projection matrices for each swapchain image, 
-/// and then update the scene with the current camera and delta time. 
-/// This function is called every frame and is used to update the game state before rendering.
+/// Called every frame to update the game state, including the camera and scene.
 /// </summary>
 /// <param name="renderer"></param>
 /// <param name="imageIndex"></param>
 /// <param name="deltaTime"></param>
 void MyGame::onUpdate(Graphics::Renderer & renderer, uint32_t imageIndex, float deltaTime)
 {
-	// Get the current window and update the camera buffers with the current view and projection matrices
 	auto window = this->getWindow();
 	m_camera->updateCameraBuffers(renderer, imageIndex);
 	m_scene->update(*m_camera, deltaTime);
 
-	// Update world editor
-	if (m_worldEditor->isVisible()) {
+	if (m_worldEditor->isVisible()) 
+	{
 		m_worldEditor->update(*m_uiContext, *this->inputManager, deltaTime);
 	}
 }
 
 /// <summary>
-/// Before rendering, we can perform any necessary updates or state changes that need to happen before the scene is rendered.
+/// Called before the rendering of the scene begins. 
+/// This function can be used to perform any necessary updates 
+/// or preparations before rendering, such as updating 
+/// uniform buffers or preparing the scene for rendering.
 /// </summary>
 /// <param name="renderer"></param>
 /// <param name="imageIndex"></param>
@@ -99,28 +152,32 @@ void MyGame::beforeRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 }
 
 /// <summary>
-/// Here we handle the main rendering logic for the game. This function is called every frame and is responsible for rendering the 3D scene, the UI, and any other visual elements.
+/// Called to render the scene and UI. This function handles rendering the 3D scene to an offscreen render texture,
 /// </summary>
 /// <param name="renderer"></param>
+/// <param name="frameContext"></param>
 /// <param name="imageIndex"></param>
 void MyGame::onRender(Graphics::Renderer & renderer, GFXEngine::Graphics::FrameContext& frameContext, uint32_t imageIndex)
 {
-	// First we render the 3D scene to the offscreen render texture.
+	// Render the scene to the offscreen render texture first.
 	renderer.beginRenderPass(renderer.getOffscreenRenderPass(), m_renderTexture->getFramebuffer(), imageIndex);
 	m_scene->render(renderer, *m_camera, frameContext, imageIndex);
 	renderer.endRenderPass(imageIndex);
 
-	// Then we render the contents of the render texture to the screen using the present pipeline. 
-	// This allows us to apply post-processing effects or other screen-space effects if desired.
+	// If the world editor is visible, we render its scene to the same render texture.
+	if (m_worldEditor->isVisible()) {
+		m_worldEditor->renderSceneToTexture(renderer, frameContext, m_uiContext.get(), imageIndex);
+	}
+
+	// Now we can render the final image to the screen using the present pipeline.
 	auto presentPipeline = renderer.getPipeline<GFXEngine::Graphics::PresentPipeline>(Defintions::PipelineType::PRESENT_PIPELINE);
 	renderer.beginRenderPass(renderer.getRenderPass(), imageIndex);
 	renderer.usePipeline(*presentPipeline, imageIndex);
 	m_renderTexture->draw(renderer, *presentPipeline, imageIndex);
 
-	// Now we can render the UI on top of the 3D scene. The UI context will handle rendering all the UI elements and ensuring they are drawn in the correct order.
+	// Render the UI on top of the scene.
 	m_uiContext->newFrame();
 	if (m_worldEditor->isVisible()) {
-		m_worldEditor->renderSceneToTexture(renderer, frameContext, m_uiContext.get(), imageIndex);
 		m_worldEditor->render(*m_uiContext, renderer, imageIndex);
 	}
 	m_uiContext->render(renderer, imageIndex);
@@ -130,7 +187,9 @@ void MyGame::onRender(Graphics::Renderer & renderer, GFXEngine::Graphics::FrameC
 }
 
 /// <summary>
-/// Here we can perform any necessary cleanup or state changes that need to happen after the scene has been rendered.
+/// Called after the rendering of the scene and UI is complete. 
+/// This function can be used to perform any necessary cleanup or post-processing after rendering.
+/// </summary>
 /// <param name="renderer"></param>
 /// <param name="imageIndex"></param>
 void MyGame::afterRender(Graphics::Renderer & renderer, uint32_t imageIndex)
@@ -142,7 +201,7 @@ void MyGame::afterRender(Graphics::Renderer & renderer, uint32_t imageIndex)
 }
 
 /// <summary>
-/// This function is called when the game is being destroyed and is used to clean up any resources that were created during the game's lifetime.
+/// Called when the game is being destroyed, allowing for cleanup of resources and disposal of assets.
 /// </summary>
 /// <param name="renderer"></param>
 void MyGame::onDestroy(Graphics::Renderer & renderer)
@@ -158,9 +217,7 @@ void MyGame::onDestroy(Graphics::Renderer & renderer)
 }
 
 /// <summary>
-/// Since the engine uses Vulkan, we need to handle swapchain recreation when the window is resized or when the swapchain becomes invalid.
-/// This is the callback BEFORE the swapchain is recreated, allowing us to clean up any resources that depend on the swapchain before it is destroyed.
-/// Mainly you wont use this function, but it can be useful if you have resources that need to be explicitly cleaned up before the swapchain is recreated.
+/// Called when the swapchain is recreated, allowing for any necessary updates or adjustments to be made before the new swapchain is used.
 /// </summary>
 /// <param name="renderer"></param>
 void MyGame::onSwapchainRecreate(Graphics::Renderer& renderer)
@@ -168,9 +225,7 @@ void MyGame::onSwapchainRecreate(Graphics::Renderer& renderer)
 }
 
 /// <summary>
-/// Since the engine uses Vulkan, we need to handle swapchain recreation when the window is resized or when the swapchain becomes invalid.
-/// This is the callback AFTER the swapchain has been recreated, allowing us to recreate any resources that depend on the swapchain with the new dimensions and formats.
-/// In this function, we resize the render texture to match the new swapchain dimensions and update its descriptor set to ensure it can be sampled correctly in the new render pass.
+/// Called after the swapchain has been recreated, allowing for any necessary updates or adjustments to be made to the render texture and its descriptor set.
 /// </summary>
 /// <param name="renderer"></param>
 /// <param name="viewport"></param>
@@ -181,10 +236,28 @@ void MyGame::afterSwapchainRecreate(Graphics::Renderer& renderer, VkViewport vie
 	m_renderTexture->updateDescriptorSet(renderer, 0, renderer.getSamplerLayout());
 }
 
+/// <summary>
+/// Called when input is received, allowing for handling of keyboard input events.
+/// </summary>
+/// <param name="key"></param>
+/// <param name="scancode"></param>
+/// <param name="action"></param>
+/// <param name="mods"></param>
 void MyGame::onInput(int key, int scancode, int action, int mods)
-{}
+{
+	if (m_worldEditor->isVisible()) 
+	{
+		m_worldEditor->handleInput(this->getWindow(), key, scancode, action, mods);
+	}
+}
 
-void MyGame::onMouseInput(int button, int mods, int action)
+/// <summary>
+/// Called when mouse input is received, allowing for handling of mouse button events.
+/// </summary>
+/// <param name="button"></param>
+/// <param name="action"></param>
+/// <param name="mods"></param>
+void MyGame::onMouseInput(int button, int action, int mods)
 {
 	if (m_worldEditor->isVisible())
 	{
@@ -192,6 +265,11 @@ void MyGame::onMouseInput(int button, int mods, int action)
 	}
 }
 
+/// <summary>
+/// Called when the mouse is moved, allowing for handling of mouse movement events.
+/// </summary>
+/// <param name="xpos"></param>
+/// <param name="ypos"></param>
 void MyGame::onMouseMove(double xpos, double ypos)
 {
 	if (m_worldEditor->isVisible())
@@ -200,5 +278,10 @@ void MyGame::onMouseMove(double xpos, double ypos)
 	}
 }
 
+/// <summary>
+/// Called when the mouse wheel is scrolled, allowing for handling of scroll events.
+/// </summary>
+/// <param name="xoffset"></param>
+/// <param name="yoffset"></param>
 void MyGame::onScroll(double xoffset, double yoffset)
 {}
